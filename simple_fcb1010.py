@@ -5,15 +5,7 @@ from Launchpad.ConfigurableButtonElement import ConfigurableButtonElement
 #
 from functools import partial
 #
-# @depends(send_midi=None)
-def make_button(channel, cc, send_midi=None):
-    return ConfigurableButtonElement(
-        is_momentary=True,
-        msg_type=MIDI_CC_TYPE,
-        channel=channel,
-        identifier=cc,
-        # send_midi=send_midi
-    )
+
 
 class simple_fcb1010(ControlSurface):
     def __init__(self, c_instance):
@@ -38,8 +30,13 @@ class simple_fcb1010(ControlSurface):
         self.assign_buttons_to_clips()
 
     def create_button(self, channel, cc):
-        return make_button(channel, cc)
-
+        return ConfigurableButtonElement(
+            is_momentary=True,
+            msg_type=MIDI_CC_TYPE,
+            channel=channel,
+            identifier=cc,
+            # send_midi=send_midi
+        )
 
     def assign_buttons_to_clips(self):
         song = self.song()
