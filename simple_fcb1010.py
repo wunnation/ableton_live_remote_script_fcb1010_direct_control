@@ -1,18 +1,18 @@
 import Live
 from _Framework.ControlSurface import ControlSurface
-from _Framework.Dependency import inject, depends
+# from _Framework.Dependency import inject, depends
 from _Framework.InputControlElement import MIDI_CC_TYPE
 # from Launchpad.ConfigurableButtonElement import ConfigurableButtonElement
 #
-from _Framework.Layer import Layer
-from _Framework.DeviceComponent import DeviceComponent
-from _Framework.MixerComponent import MixerComponent
-from _Framework.SliderElement import SliderElement
-from _Framework.TransportComponent import TransportComponent
-from _Framework.InputControlElement import *
-from _Framework.ButtonMatrixElement import ButtonMatrixElement
-from _Framework.SessionComponent import SessionComponent
-from _Framework.EncoderElement import *
+# from _Framework.Layer import Layer
+# from _Framework.DeviceComponent import DeviceComponent
+# from _Framework.MixerComponent import MixerComponent
+# from _Framework.SliderElement import SliderElement
+# from _Framework.TransportComponent import TransportComponent
+# from _Framework.InputControlElement import *
+# from _Framework.ButtonMatrixElement import ButtonMatrixElement
+# from _Framework.SessionComponent import SessionComponent
+# from _Framework.EncoderElement import *
 from Launchpad.ConfigurableButtonElement import ConfigurableButtonElement
 #
 from functools import partial
@@ -85,7 +85,7 @@ class simple_fcb1010(ControlSurface):
                             partial(self.fire_clip_if_full_press, clip=clip_slot),
                             identify_sender=False
                         )
-                        self.log_message(f"Mapped CC {13 + start_index + i} to Track {track_num}, Slot {i}")
+                        # self.log_message(f"Mapped CC {13 + start_index + i} to Track {track_num}, Slot {i}")
             else:
                 self.log_message(f"Track index {track_num} out of bounds.")
 
