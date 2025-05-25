@@ -1,22 +1,10 @@
 import Live
 from _Framework.ControlSurface import ControlSurface
-# from _Framework.Dependency import inject, depends
 from _Framework.InputControlElement import MIDI_CC_TYPE
-# from Launchpad.ConfigurableButtonElement import ConfigurableButtonElement
-#
-# from _Framework.Layer import Layer
-# from _Framework.DeviceComponent import DeviceComponent
-# from _Framework.MixerComponent import MixerComponent
-# from _Framework.SliderElement import SliderElement
-# from _Framework.TransportComponent import TransportComponent
-# from _Framework.InputControlElement import *
-# from _Framework.ButtonMatrixElement import ButtonMatrixElement
-# from _Framework.SessionComponent import SessionComponent
-# from _Framework.EncoderElement import *
 from Launchpad.ConfigurableButtonElement import ConfigurableButtonElement
 #
 from functools import partial
-
+#
 # @depends(send_midi=None)
 def make_button(channel, cc, send_midi=None):
     return ConfigurableButtonElement(
@@ -50,20 +38,8 @@ class simple_fcb1010(ControlSurface):
         self.assign_buttons_to_clips()
 
     def create_button(self, channel, cc):
-        # with inject(send_midi=self._c_instance.send_midi).everywhere():
         return make_button(channel, cc)
 
-    # def create_button(self, channel, cc):
-    # # def create_button(self, channel, cc):
-    #     return make_button(channel, cc, self._send_midi)
-    #     # send_midi = find_dependency('send_midi')
-    #     # return ConfigurableButtonElement(
-    #     #     is_momentary=True,
-    #     #     msg_type=MIDI_CC_TYPE,
-    #     #     channel=channel,
-    #     #     identifier=cc,
-    #     #     send_midi=send_midi
-    #     # )
 
     def assign_buttons_to_clips(self):
         song = self.song()
