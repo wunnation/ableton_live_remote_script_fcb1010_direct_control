@@ -1,4 +1,4 @@
-from .simple_fcb1010 import simple_fcb1010
+from .fcb1010_by_scene import fcb1010_by_scene
 
 def create_instance(c_instance):
-    return simple_fcb1010(c_instance)
+    return fcb1010_by_scene(c_instance)
