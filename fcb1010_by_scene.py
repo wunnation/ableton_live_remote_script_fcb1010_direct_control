@@ -9,6 +9,8 @@ from _Framework.InputControlElement import MIDI_CC_TYPE
 
 # Import a configurable button class (used for each footswitch on the FCB1010)
 from Launchpad.ConfigurableButtonElement import ConfigurableButtonElement
+from _Framework.SessionComponent import SessionComponent
+from _Framework.ButtonElement import ButtonElement
 
 # Used to bind parameters to functions (for listener callbacks)
 from functools import partial
@@ -48,7 +50,7 @@ class simple_fcb1010(ControlSurface):
             button = self.create_button(channel=13, cc=cc)
             self.track_clips_direct.append(button)
 
-        # Link each button to a specific clip slot
+        # Link each button to a specific clip slot or function
         self.assign_buttons_to_clips()
 
     # Create a single button element for a given MIDI channel and CC number
@@ -81,14 +83,25 @@ class simple_fcb1010(ControlSurface):
             if track_num < len(song.tracks):
                 track = song.tracks[track_num]
 
-                # Assign each button to the corresponding clip slot (if it exists)
+                # Assign each button to the appropriate function
                 for i, button in enumerate(track_buttons):
-                    if i < len(track.clip_slots):
+                    if i < 8 and i < len(track.clip_slots):
+                        # Assign to clip slots 0–7
                         clip_slot = track.clip_slots[i]
-
-                        # Add a listener that fires the clip when the button is fully pressed (value 127)
                         button.add_value_listener(
                             partial(self.fire_clip_if_full_press, clip=clip_slot),
+                            identify_sender=False
+                        )
+                    elif i == 8:
+                        # Button 9: Toggle record arm for the track
+                        button.add_value_listener(
+                            partial(self.toggle_arm_if_full_press, track=track),
+                            identify_sender=False
+                        )
+                    elif i == 9:
+                        # Button 10: Stop all clips on the track
+                        button.add_value_listener(
+                            partial(self.stop_clips_if_full_press, track=track),
                             identify_sender=False
                         )
             else:
@@ -99,3 +112,13 @@ class simple_fcb1010(ControlSurface):
     def fire_clip_if_full_press(self, value, clip):
         if value == 127:
             clip.fire()
+
+    # Callback: Toggle arm if value equals 127
+    def toggle_arm_if_full_press(self, value, track):
+        if value == 127 and track.can_be_armed:
+            track.arm = not track.arm
+
+    # Callback: Stop all clips if value equals 127
+    def stop_clips_if_full_press(self, value, track):
+        if value == 127:
+            track.stop_all_clips()
