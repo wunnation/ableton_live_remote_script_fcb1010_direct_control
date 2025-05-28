@@ -14,9 +14,13 @@ from _Framework.ButtonElement import ButtonElement
 
 # Used to bind parameters to functions (for listener callbacks)
 from functools import partial
+import os
+
+
+SCRIPT_VERSION = "v0.1.0"
 
 # Define the main class for the FCB1010 script
-class simple_fcb1010(ControlSurface):
+class fcb1010_by_track(ControlSurface):
     def __init__(self, c_instance):
         # Call the superclass constructor with the Ableton instance
         super().__init__(c_instance)
@@ -43,7 +47,8 @@ class simple_fcb1010(ControlSurface):
         self.track_clips_direct = []
 
         # Log a message to Ableton's internal console
-        self.log_message("simple_fcb1010 initialized.")
+        self.log_message(f"{os.path.basename(__file__)} {SCRIPT_VERSION} initialized.")
+        # self.log_message("simple_fcb1010 initialized.")
 
         # Create button objects for CC messages 13–92 on channel 13 (80 buttons total)
         for cc in range(13, 93):
