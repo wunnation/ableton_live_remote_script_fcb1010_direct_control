@@ -16,7 +16,7 @@ from _Framework.ButtonElement import ButtonElement
 from functools import partial
 import os
 
-SCRIPT_VERSION = "v0.1.0"
+SCRIPT_VERSION = "v0.1.1"
 # Developed with Ableton Live 12.0
 
 START_BANK = 1 # Valid: 0-9, a value 1 is skipping bank 0 # TODO: This is not linked into create button objects
