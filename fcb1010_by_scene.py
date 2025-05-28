@@ -17,6 +17,20 @@ from functools import partial
 import os
 
 SCRIPT_VERSION = "v0.1.0"
+# Developed with Ableton Live 12.0
+
+START_BANK = 1 # Valid: 0-9, a value 1 is skipping bank 0 # TODO: This is not linked into create button objects
+NUM_SCENES = 8 # Valid: 1-10, a value of 8 is only using 8 of the maximum 10 scenes (leaving two banks open)
+START_SCENE = 0 # 0 is what is labeled as 'Scene 1' in the Ableton Live UI
+START_TRACK = 0 # this supports 4 tracks. 0 is 'Track 1' in Ableton Live UI
+NUM_TRACKS = 4
+# 
+SINGLE_BANK_LAUNCH_SCENE_IDS = [0]
+SINGLE_BANK_LAUNCH_CLIP_IDS = [1, 2, 3, 4] # Track A, B, C, D in current scene
+SINGLE_BANK_STOP_CLIP_IDS = [6, 7, 8, 9] # Track A, B, C, D
+SINGLE_BANK_STOP_ALL_TRACK_CLIPS = [5]
+
+
 
 
 # Define the main class for the FCB1010 script
@@ -44,7 +58,7 @@ class fcb1010_by_scene(ControlSurface):
         self.led_off = 0
 
         # This will store the 80 buttons (CC 13–92) in a flat list
-        self.track_clips_direct = []
+        self.all_buttons = []
 
         # Log a message to Ableton's internal console
         # self.log_message(f"{os.path.basename(__file__)} initialized.")
@@ -52,12 +66,14 @@ class fcb1010_by_scene(ControlSurface):
         # self.log_message("simple_fcb1010 initialized.")
 
         # Create button objects for CC messages 13–92 on channel 13 (80 buttons total)
-        for cc in range(13, 93):
+        for cc in range(13, 93): # 
             button = self.create_button(channel=13, cc=cc)
-            self.track_clips_direct.append(button)
+            self.all_buttons.append(button)
 
         # Link each button to a specific clip slot or function
         self.assign_buttons_to_clips()
+
+
 
     # Create a single button element for a given MIDI channel and CC number
     def create_button(self, channel, cc):
@@ -75,44 +91,104 @@ class fcb1010_by_scene(ControlSurface):
         if not song:
             self.log_message("Unable to get song object.")
             return
-
-        # Loop through 9 tracks (tracks 2–10; track 0 = Master, track 1 = usually not used here)
-        for track_index in range(9):
-            # Each track gets 10 buttons (total 9*10 = 90, but we use 80, so last one may be unused)
-            start_index = track_index * 10
-            track_buttons = self.track_clips_direct[start_index:start_index + 10]
-
+        
+        # loop through 8 Scenes
+        for scene_index in range(NUM_SCENES):
+            # Each Bank has 10 buttons, we are dedicating 1 bank to 1 scene.
+            start_index = scene_index * 10
+            # - get all button objects for this scene.
+            scene_buttons = self.all_buttons[start_index:start_index + 10]
+            
             # Ableton tracks are zero-indexed; we start at track 1 (second track)
-            track_num = track_index + 1
+            scene_num = scene_index + START_SCENE
 
-            # Check if track exists before trying to assign buttons
-            if track_num < len(song.tracks):
-                track = song.tracks[track_num]
-
-                # Assign each button to the appropriate function
-                for i, button in enumerate(track_buttons):
-                    if i < 8 and i < len(track.clip_slots):
-                        # Assign to clip slots 0–7
-                        clip_slot = track.clip_slots[i]
+            for i, button in enumerate(scene_buttons):
+                # determine what type of button this is...
+                # 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 (labeled 1-10 on fcb1010)
+                if i in SINGLE_BANK_LAUNCH_SCENE_IDS:
+                    # sub_index = SINGLE_BANK_LAUNCH_SCENE_IDS.index(i) (not used in scene launch)
+                    if scene_num < len(song.scenes):
+                        scene = song.scenes[scene_index]
                         button.add_value_listener(
-                            partial(self.fire_clip_if_full_press, clip=clip_slot),
+                            partial(self.launch_scene_if_full_press, scene=scene),
                             identify_sender=False
                         )
-                    elif i == 8:
-                        # Button 9: Toggle record arm for the track
-                        button.add_value_listener(
-                            partial(self.toggle_arm_if_full_press, track=track),
-                            identify_sender=False
-                        )
-                    elif i == 9:
-                        # Button 10: Stop all clips on the track
+                elif i in SINGLE_BANK_STOP_CLIP_IDS:
+                    # Get Track Number
+                    track_num = SINGLE_BANK_STOP_CLIP_IDS.index(i)
+                    if track_num < len(song.tracks):
+                        # Assign Button Function to track object
+                        track = song.tracks[track_num]
                         button.add_value_listener(
                             partial(self.stop_clips_if_full_press, track=track),
                             identify_sender=False
                         )
-            else:
-                # Log a warning if trying to map to a non-existent track
-                self.log_message(f"Track index {track_num} out of bounds.")
+                elif i in SINGLE_BANK_STOP_ALL_TRACK_CLIPS:
+                    # Get Track Number
+                    # track_num = SINGLE_BANK_STOP_ALL_TRACK_CLIPS.index(i) (not used in stop clips for all tracks)
+                    tracks = []
+                    for track_num in range(START_TRACK, START_TRACK+NUM_TRACKS):
+                        if track_num >= len(song.tracks):
+                            break
+                        else:
+                            track = song.tracks[track_num]
+                            tracks.append(track)
+                    if tracks:
+                        # Assign Button Function to track object
+                        button.add_value_listener(
+                            partial(self.stop_clips_for_all_tracks, tracks=tracks),
+                            identify_sender=False
+                        )
+                elif i in SINGLE_BANK_LAUNCH_CLIP_IDS:
+                    track_num = SINGLE_BANK_LAUNCH_CLIP_IDS.index(i)
+                    if track_num < len(song.tracks):
+                        track = song.tracks[track_num]
+                        if scene_index < len(track.clip_slots):
+                            clip_slot = track.clip_slots[scene_index]
+                            button.add_value_listener(
+                                partial(self.fire_clip_if_full_press, clip=clip_slot),
+                                identify_sender=False
+                            )
+
+
+        # # Loop through 9 tracks (tracks 2–10; track 0 = Master, track 1 = usually not used here)
+        # for track_index in range(9):
+        #     # Each track gets 10 buttons (total 9*10 = 90, but we use 80, so last one may be unused)
+        #     start_index = track_index * 10
+        #     track_buttons = self.all_buttons[start_index:start_index + 10]
+
+        #     # Ableton tracks are zero-indexed; we start at track 1 (second track)
+        #     track_num = track_index + 1
+
+        #     # Check if track exists before trying to assign buttons
+        #     if track_num < len(song.tracks):
+        #         track = song.tracks[track_num]
+
+        #         # Assign each button to the appropriate function
+        #         for i, button in enumerate(track_buttons):
+        #             if i < 8 and i < len(track.clip_slots):
+        #                 # Assign to clip slots 0–7
+        #                 clip_slot = track.clip_slots[i]
+        #                 button.add_value_listener(
+        #                     partial(self.fire_clip_if_full_press, clip=clip_slot),
+        #                     identify_sender=False
+        #                 )
+        #             elif i == 8:
+        #                 # Button 9: Toggle record arm for the track
+        #                 button.add_value_listener(
+        #                     partial(self.toggle_arm_if_full_press, track=track),
+        #                     identify_sender=False
+        #                 )
+        #             elif i == 9:
+        #                 # Button 10: Stop all clips on the track
+        #                 button.add_value_listener(
+        #                     partial(self.stop_clips_if_full_press, track=track),
+        #                     identify_sender=False
+        #                 )
+        #     else:
+        #         # Log a warning if trying to map to a non-existent track
+        #         self.log_message(f"Track index {track_num} out of bounds.")
+
 
     # Callback: Trigger clip if value equals 127 (i.e., full press from foot controller)
     def fire_clip_if_full_press(self, value, clip):
@@ -128,3 +204,13 @@ class fcb1010_by_scene(ControlSurface):
     def stop_clips_if_full_press(self, value, track):
         if value == 127:
             track.stop_all_clips()
+
+    def stop_clips_for_all_tracks(self, value, tracks):
+        if value != 127:
+            return
+        for track in tracks:
+            track.stop_all_clips()
+        
+    def launch_scene_if_full_press(self, value, scene):
+        if value == 127:
+            scene.fire()
