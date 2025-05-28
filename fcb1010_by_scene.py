@@ -110,7 +110,8 @@ class fcb1010_by_scene(ControlSurface):
                     if scene_num < len(song.scenes):
                         scene = song.scenes[scene_index]
                         button.add_value_listener(
-                            partial(self.launch_scene_if_full_press, scene=scene),
+                            partial(self.launch_scene_if_full_press_pass_ids, scene_num=scene_num),
+                            # partial(self.launch_scene_if_full_press, scene=scene),
                             identify_sender=False
                         )
                 elif i in SINGLE_BANK_STOP_CLIP_IDS:
@@ -120,33 +121,39 @@ class fcb1010_by_scene(ControlSurface):
                         # Assign Button Function to track object
                         track = song.tracks[track_num]
                         button.add_value_listener(
-                            partial(self.stop_clips_if_full_press, track=track),
+                            partial(self.stop_clips_if_full_press_pass_ids, track_num=track_num),
+                            # partial(self.stop_clips_if_full_press, track=track),
                             identify_sender=False
                         )
                 elif i in SINGLE_BANK_STOP_ALL_TRACK_CLIPS:
                     # Get Track Number
                     # track_num = SINGLE_BANK_STOP_ALL_TRACK_CLIPS.index(i) (not used in stop clips for all tracks)
                     tracks = []
+                    track_nums = []
                     for track_num in range(START_TRACK, START_TRACK+NUM_TRACKS):
                         if track_num >= len(song.tracks):
                             break
                         else:
                             track = song.tracks[track_num]
                             tracks.append(track)
-                    if tracks:
+                            track_nums.append(track_num)
+                    if track_nums:
                         # Assign Button Function to track object
                         button.add_value_listener(
-                            partial(self.stop_clips_for_all_tracks, tracks=tracks),
+                            # partial(self.stop_clips_for_all_tracks, tracks=tracks),
+                            partial(self.stop_clips_for_all_tracks_pass_ids, track_nums=track_nums),
                             identify_sender=False
                         )
                 elif i in SINGLE_BANK_LAUNCH_CLIP_IDS:
                     track_num = SINGLE_BANK_LAUNCH_CLIP_IDS.index(i)
                     if track_num < len(song.tracks):
                         track = song.tracks[track_num]
-                        if scene_index < len(track.clip_slots):
-                            clip_slot = track.clip_slots[scene_index]
+                        if scene_num < len(track.clip_slots):
+                            clip_slot = track.clip_slots[scene_num]
                             button.add_value_listener(
-                                partial(self.fire_clip_if_full_press, clip=clip_slot),
+                                # 
+                                # partial(self.fire_clip_if_full_press, clip=clip_slot),
+                                partial(self.fire_clip_if_full_press_pass_ids, scene_num=scene_num, track_num=track_num),
                                 identify_sender=False
                             )
 
@@ -191,26 +198,73 @@ class fcb1010_by_scene(ControlSurface):
 
 
     # Callback: Trigger clip if value equals 127 (i.e., full press from foot controller)
-    def fire_clip_if_full_press(self, value, clip):
-        if value == 127:
-            clip.fire()
+    # def fire_clip_if_full_press(self, value, clip):
+    #     if value == 127:
+    #         clip.fire()
+
+    # Pass ids instead of objects, so that position stays same even if user moves tracks and scenes around
+    def fire_clip_if_full_press_pass_ids(self, value, scene_num, track_num):
+        if value != 127:
+            return
+        song = self.song()
+        if track_num < len(song.tracks):
+            track = song.tracks[track_num]
+            if scene_num < len(track.clip_slots):
+                clip = track.clip_slots[scene_num]
+                clip.fire()
 
     # Callback: Toggle arm if value equals 127
     def toggle_arm_if_full_press(self, value, track):
         if value == 127 and track.can_be_armed:
             track.arm = not track.arm
 
-    # Callback: Stop all clips if value equals 127
+    def toggle_arm_if_full_press_pass_ids(self, value, track_num):
+        if value != 127:
+            return
+        song = self.song()
+        if track_num < len(song.tracks):
+            track = song.tracks[track_num]       
+            if track.can_be_armed:
+                track.arm = not track.arm
+
+
+    # Callback: Stop all clips (single track) if value equals 127
     def stop_clips_if_full_press(self, value, track):
         if value == 127:
             track.stop_all_clips()
 
+    def stop_clips_if_full_press_pass_ids(self, value, track_num):
+        if value != 127:
+            return
+        song = self.song()
+        if track_num < len(song.tracks):
+            track = song.tracks[track_num]
+            track.stop_all_clips()
+
+    # Callback: Stop all clips (all looped tracks) if value equals 127
     def stop_clips_for_all_tracks(self, value, tracks):
         if value != 127:
             return
         for track in tracks:
             track.stop_all_clips()
         
+    def stop_clips_for_all_tracks_pass_ids(self, value, track_nums):
+        if value != 127:
+            return
+        song = self.song()
+        for track_num in track_nums:
+            if track_num < len(song.tracks):
+                track = song.tracks[track_num]
+                track.stop_all_clips()
+
     def launch_scene_if_full_press(self, value, scene):
         if value == 127:
+            scene.fire()
+
+    def launch_scene_if_full_press_pass_ids(self, value, scene_num):
+        if value != 127:
+            return
+        song = self.song()
+        if scene_num < len(song.scenes):
+            scene = song.scenes[scene_num]
             scene.fire()
