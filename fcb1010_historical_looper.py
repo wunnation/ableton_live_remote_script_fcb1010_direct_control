@@ -1,124 +1,97 @@
-# Import Ableton Live Python API
+# fcb1010_historical_looper.py
+# MIDI Remote Script for Ableton Live
+# Maps CC 96 to a function that mimics the Max for Live "bang" script
+# Developed for Live 12.0
+
 import Live
-
-# Import the base class for control surfaces
 from _Framework.ControlSurface import ControlSurface
-
-# Import constant for MIDI Continuous Controller messages
 from _Framework.InputControlElement import MIDI_CC_TYPE
-
-# Import a configurable button class (used for each footswitch on the FCB1010)
 from Launchpad.ConfigurableButtonElement import ConfigurableButtonElement
-from _Framework.SessionComponent import SessionComponent
-from _Framework.ButtonElement import ButtonElement
-
-# Used to bind parameters to functions (for listener callbacks)
 from functools import partial
+import os
 
-# Define the main class for the FCB1010 script
-class simple_fcb1010(ControlSurface):
+SCRIPT_VERSION = "v0.1.0"
+
+class fcb1010_historical_looper(ControlSurface):
     def __init__(self, c_instance):
-        # Call the superclass constructor with the Ableton instance
         super().__init__(c_instance)
-
-        # Manually assign the _send_midi function (used to send raw MIDI messages if needed)
         self._send_midi = self._c_instance.send_midi
 
-        # Use the component_guard context manager to ensure safe setup (avoids race conditions during load)
         with self.component_guard():
-            # Assign Live's MapMode object to a global so it can be used elsewhere if needed
             global _map_modes
             _map_modes = Live.MidiMap.MapMode
 
-            # Set up all the MIDI button controls
-            self._setup_controls()
+            self.led_on = 127
+            self.led_off = 0
 
-    # Set up MIDI controls from the FCB1010 (buttons/footswitches)
-    def _setup_controls(self):
-        # Define LED on/off values (if sending feedback later)
-        self.led_on = 127
-        self.led_off = 0
+            self.track_clip_trigger = []
 
-        # This will store the 80 buttons (CC 13–92) in a flat list
-        self.track_clips_direct = []
+            self.log_message(f"{os.path.basename(__file__)} {SCRIPT_VERSION} initialized.")
 
-        # Log a message to Ableton's internal console
-        self.log_message("simple_fcb1010 initialized.")
+            # Create button for CC 96 on channel 13
+            button = self.create_button(channel=13, cc=96)
+            self.track_clip_trigger.append(button)
 
-        # Create button objects for CC messages 13–92 on channel 13 (80 buttons total)
-        for cc in range(13, 93):
-            button = self.create_button(channel=13, cc=cc)
-            self.track_clips_direct.append(button)
+            # Assign the button to the historical looper function
+            button.add_value_listener(
+                partial(self.historical_looper_bang, button=button),
+                identify_sender=False
+            )
 
-        # Link each button to a specific clip slot or function
-        self.assign_buttons_to_clips()
-
-    # Create a single button element for a given MIDI channel and CC number
     def create_button(self, channel, cc):
         return ConfigurableButtonElement(
-            is_momentary=True,       # FCB1010 buttons act like momentary switches
-            msg_type=MIDI_CC_TYPE,   # Use MIDI CC messages
-            channel=channel,         # MIDI channel the FCB1010 is sending on
-            identifier=cc            # CC number (13–92)
+            is_momentary=True,
+            msg_type=MIDI_CC_TYPE,
+            channel=channel,
+            identifier=cc
         )
 
-    # Assign buttons to clip slots on tracks in the Live set
-    def assign_buttons_to_clips(self):
-        # Get the current Live "song" (a.k.a. the Live Set)
-        song = self.song()
-        if not song:
-            self.log_message("Unable to get song object.")
+    def historical_looper_bang(self, value, button):
+        if value != 127:
             return
 
-        # Loop through 9 tracks (tracks 2–10; track 0 = Master, track 1 = usually not used here)
-        for track_index in range(9):
-            # Each track gets 10 buttons (total 9*10 = 90, but we use 80, so last one may be unused)
-            start_index = track_index * 10
-            track_buttons = self.track_clips_direct[start_index:start_index + 10]
+        song = self.song()
+        view = song.view
+        selected_track = view.selected_track
+        track_index = list(song.tracks).index(selected_track)
+        track_id = selected_track._live_ptr
 
-            # Ableton tracks are zero-indexed; we start at track 1 (second track)
-            track_num = track_index + 1
+        self.log_message(f"Track ID: {track_id}")
+        self.log_message(f"Track Number: {track_index}")
+        self.log_message(f"Track Name: {selected_track.name}")
 
-            # Check if track exists before trying to assign buttons
-            if track_num < len(song.tracks):
-                track = song.tracks[track_num]
+        clip_slots = selected_track.clip_slots
+        clip_slot_count = len(clip_slots)
+        self.log_message(f"Total Clips: {clip_slot_count}")
 
-                # Assign each button to the appropriate function
-                for i, button in enumerate(track_buttons):
-                    if i < 8 and i < len(track.clip_slots):
-                        # Assign to clip slots 0–7
-                        clip_slot = track.clip_slots[i]
-                        button.add_value_listener(
-                            partial(self.fire_clip_if_full_press, clip=clip_slot),
-                            identify_sender=False
-                        )
-                    elif i == 8:
-                        # Button 9: Toggle record arm for the track
-                        button.add_value_listener(
-                            partial(self.toggle_arm_if_full_press, track=track),
-                            identify_sender=False
-                        )
-                    elif i == 9:
-                        # Button 10: Stop all clips on the track
-                        button.add_value_listener(
-                            partial(self.stop_clips_if_full_press, track=track),
-                            identify_sender=False
-                        )
-            else:
-                # Log a warning if trying to map to a non-existent track
-                self.log_message(f"Track index {track_num} out of bounds.")
+        has_clip_count = 0
+        last_clip_slot_index = -1
 
-    # Callback: Trigger clip if value equals 127 (i.e., full press from foot controller)
-    def fire_clip_if_full_press(self, value, clip):
-        if value == 127:
-            clip.fire()
+        for j, clip_slot in enumerate(clip_slots):
+            if not clip_slot.has_clip:
+                continue
 
-    # Callback: Toggle arm if value equals 127
-    def toggle_arm_if_full_press(self, value, track):
-        if value == 127 and track.can_be_armed:
-            track.arm = not track.arm
+            has_clip_count += 1
+            clip = clip_slot.clip
+            last_clip_slot_index = j
 
-    # Callback: Stop all clips if value equals 127
-    def stop_clips_if_full_press(self, value, track):
-        if value == 127:
-            track.stop_all_clips()
+            is_recording = clip_slot.is_recording
+            is_playing = clip_slot.is_playing
+
+            song_time = song.current_song_time
+            clip_start = clip.start_time
+            clip_length = song_time - clip_start
+
+            loop_end = ((clip_length + 3.999) // 4) * 4
+            loop_start = max(loop_end - 16.0, 0)
+
+            if is_recording or is_playing:
+                self.log_message(f"{'Recording' if is_recording else 'Playing'} Clip Found at Slot: {j}")
+                clip.loop_start = loop_start
+                clip.loop_end = loop_end
+                clip.looping = True
+
+                self.log_message(f"Loop set from {loop_start} to {loop_end} for clip at slot {j}")
+
+        self.log_message(f"Last Available Clip Slot Index: {last_clip_slot_index}")
+        self.log_message(f"hasClipCount: {has_clip_count}")
